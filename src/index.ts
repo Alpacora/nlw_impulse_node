@@ -13,7 +13,7 @@ app.get('/github', (request, response) => {
 
 app.get('/signin/callback', (request, response) => {
   const { code } = request.query;
-
+  
   return response.json(code);
 })
 

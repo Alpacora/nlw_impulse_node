@@ -1,15 +1,16 @@
-import axios from "axios"
-/*
-  Receber code(string)
-  Recuperar o access_token no github
-  Verificar se o usuario existe no DB
-  --- NAO
-  --- SIM
-  Retornar o token com as infos do user
-*/
+import axios from "axios";
+import prismaClient from '../prisma/';
+import { sign } from 'jsonwebtoken';
 
 interface IAccessTokenResponse {
   access_token: string
+}
+
+interface IUserResponse {
+  avatar_url: string,
+  login: string,
+  id: number,
+  name: string
 }
 
 class AuthenticateUserService {
@@ -26,13 +27,43 @@ class AuthenticateUserService {
       }
     });
 
-    const response = await axios.get('https://api.github.com/user', {
+    const response = await axios.get<IUserResponse>('https://api.github.com/user', {
       headers: {
         authorization: `Bearer ${accessTokenResponse.access_token}`
       }
     })
 
-    return response.data;
+    let user = await prismaClient.user.findFirst({
+      where: {
+        github_id: response.data.id
+      }
+    })
+
+    if (!user) {
+      user = await prismaClient.user.create({
+        data: {
+          name: response.data.name,
+          github_id: response.data.id,
+          avatar_url: response.data.avatar_url,
+          login: response.data.login,
+        }
+      });
+    }
+
+    const token = sign({
+      user: {
+        name: user.name,
+        avatar_url: user.avatar_url,
+        id: user.id,
+      }
+    },
+      process.env.JWT_SECRET,
+      {
+        subject: user.id,
+        expiresIn: '1d'
+      });
+
+    return { token, user };
   }
 }
 
